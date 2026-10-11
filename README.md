@@ -1,7 +1,3 @@
-# A2Z DSA SHEET
+# A2Z Complete DSA Sheet
 
-Disclaimer: For educational purposes only
-
-## Analytics
-
-This static site includes Vercel Web Analytics. Deploy the project to Vercel, open the project in the Vercel dashboard, and enable **Analytics** under the project's Analytics tab. Page-view data will appear there after visitors use the deployed site.
+A complete, structured Data Structures and Algorithms sheet covering the A2Z DSA roadmap, from programming basics to advanced problem-solving topics.
