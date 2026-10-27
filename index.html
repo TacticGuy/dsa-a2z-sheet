@@ -108,6 +108,36 @@
             border: 1px solid var(--border-color);
         }
 
+        /* Sheet Switcher Tabs */
+        .sheet-tabs {
+            max-width: 1200px;
+            margin: 1rem auto 0;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .sheet-tab {
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            background: var(--light-gray);
+            color: var(--dark-gray);
+            padding: 0.6rem 1.4rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+
+        .sheet-tab:hover {
+            background: var(--primary-hover-color);
+        }
+
+        .sheet-tab.active {
+            background: var(--primary-color);
+            color: #fff;
+            border-color: var(--link-color);
+        }
+
         /* Heading Styles */
         h1 {
             text-align: center;
@@ -419,11 +449,41 @@
 </head>
 
 <body>
+    <div class="sheet-tabs" id="sheet-tabs">
+        <button type="button" class="sheet-tab" data-sheet="a2z">A2Z Sheet</button>
+        <button type="button" class="sheet-tab" data-sheet="sde">SDE Sheet</button>
+    </div>
     <div id="roadmap-container" class="container">
         <h1>Loading Roadmap...</h1>
     </div>
     <script>
-        const STORAGE_KEY = 'dsaRoadmapProgress';
+        const SHEETS = {
+            a2z: {
+                title: 'A2Z DSA Course Roadmap',
+                file: 'a2z.json',
+                storageKey: 'dsaRoadmapProgress',
+                columns: [
+                    ['post_link', 'BLOG', 'Blog'],
+                    ['yt_link', 'YT', 'YouTube'],
+                    ['lc_link', 'LC', 'LeetCode'],
+                    ['gfg_link', 'GFG', 'GeeksForGeeks'],
+                    ['cs_link', 'CN', 'CodingNinjas'],
+                    ['plus_link', 'TUF', 'TakeUForward+']
+                ]
+            },
+            sde: {
+                title: "Striver's SDE Sheet (180 Master DSA Patterns)",
+                file: 'sde.json',
+                storageKey: 'sdeSheetProgress',
+                columns: [
+                    ['post_link', 'BLOG', 'Blog'],
+                    ['yt_link', 'YT', 'YouTube'],
+                    ['lc_link', 'LC', 'LeetCode'],
+                    ['plus_link', 'TUF', 'TakeUForward Problem']
+                ]
+            }
+        };
+        let currentSheet = 'a2z';
 
         const platformLogos = {
             'BLOG': `<img src="./assets/logo/post.svg" alt="BLOG">`,
@@ -434,24 +494,57 @@
             'LC': `<img src="./assets/logo/lc.svg" alt="LC">`
         };
 
+        const sheetCache = {};
+
         document.addEventListener('DOMContentLoaded', () => {
-            fetch('a2z.json').then(response => {
-                if (!response.ok) throw new Error('Network response was not ok. Make sure a2z.json is in the same folder.');
-                return response.json();
-            }).then(roadmapData => {
-                const progress = loadCompletionState();
-                generateRoadmap(roadmapData, progress);
-                addEventListeners();
-            }).catch(handleError);
+            let initial = 'a2z';
+            const fromHash = location.hash.replace('#', '');
+            if (SHEETS[fromHash]) initial = fromHash;
+
+            addEventListeners();
+            switchSheet(initial);
         });
+
+        function switchSheet(name) {
+            currentSheet = name;
+            history.replaceState(null, '', '#' + name);
+            document.title = SHEETS[name].title;
+            document.querySelectorAll('.sheet-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.sheet === name);
+            });
+
+            const config = SHEETS[name];
+            const load = sheetCache[name]
+                ? Promise.resolve(sheetCache[name])
+                : fetch(config.file).then(response => {
+                    if (!response.ok) throw new Error(`Network response was not ok. Make sure ${config.file} is in the same folder.`);
+                    return response.json();
+                }).then(data => (sheetCache[name] = data));
+
+            load.then(roadmapData => {
+                if (currentSheet !== name) return;
+                generateRoadmap(roadmapData, loadCompletionState());
+                updateToggleAllLabel();
+            }).catch(handleError);
+        }
+
+        function updateToggleAllLabel() {
+            const container = document.getElementById('roadmap-container');
+            const toggleAllBtn = document.getElementById('toggle-all');
+            if (!toggleAllBtn) return;
+            const hasExpanded = container.querySelector('.collapsible.active, .sub-collapsible.active');
+            toggleAllBtn.textContent = hasExpanded ? 'Collapse all' : 'Expand all';
+        }
 
 
 
         function generateRoadmap(data, progress) {
             const container = document.getElementById('roadmap-container');
+            const columns = SHEETS[currentSheet].columns;
+            const columnHeaders = columns.map(([, label, title]) => `<th title="${title}">${label}</th>`).join('');
             let htmlContent = `
                 <div class="roadmap-header">
-                    <h1>A2Z DSA Course Roadmap</h1>
+                    <h1>${SHEETS[currentSheet].title}</h1>
                     <button type="button" id="toggle-all" class="toggle-all-btn">Expand all</button>
                 </div>`;
             data.forEach(step => {
@@ -479,13 +572,7 @@
                                             <thead>
                                                 <tr>
                                                     <th>Topic</th>
-                                                    <th title="Blog">BLOG</th>
-
-                                                    <th title="YouTube">YT</th>
-                                                    <th title="LeetCode">LC</th>
-                                                    <th title="GeeksForGeeks">GFG</th>
-                                                    <th title="CodingNinjas">CN</th>
-                                                    <th title="TakeUForward+">TUF</th>
+                                                    ${columnHeaders}
                                                     <th>Done</th>
                                                 </tr>
                                             </thead>
@@ -511,13 +598,7 @@
                                                     <td class="topic-cell" title="${tags}">
                                                         <div class="topic-title">${topic.question_title}</div>
                                                     </td>
-                                                    ${createLinkCell(topic.post_link, 'BLOG')}
-
-                                                    ${createLinkCell(topic.yt_link, 'YT')}
-                                                    ${createLinkCell(topic.lc_link, 'LC')}
-                                                    ${createLinkCell(topic.gfg_link, 'GFG')}
-                                                    ${createLinkCell(topic.cs_link, 'CN')}
-                                                    ${createLinkCell(topic.plus_link, 'TUF')}
+                                                    ${columns.map(([key, label]) => createLinkCell(topic[key], label)).join('')}
                                                     <td class="status-cell">
                                                         <input type="checkbox" class="status-checkbox" data-id="${topic.id}" ${checkedAttr}>
                                                     </td>
@@ -558,7 +639,7 @@
 
         function loadCompletionState() {
             try {
-                const savedProgress = localStorage.getItem(STORAGE_KEY);
+                const savedProgress = localStorage.getItem(SHEETS[currentSheet].storageKey);
                 return savedProgress ? JSON.parse(savedProgress) : {};
             } catch (e) {
                 console.error("Failed to load progress from localStorage", e);
@@ -568,7 +649,7 @@
 
         function saveCompletionState(progress) {
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+                localStorage.setItem(SHEETS[currentSheet].storageKey,JSON.stringify(progress));
             } catch (e) {
                 console.error("Failed to save progress to localStorage", e);
             }
@@ -604,15 +685,17 @@
 
         function addEventListeners() {
             const container = document.getElementById('roadmap-container');
-            const toggleAllBtn = document.getElementById('toggle-all');
 
-            function updateToggleAllLabel() {
-                if (!toggleAllBtn) return;
-                const hasExpanded = container.querySelector('.collapsible.active, .sub-collapsible.active');
-                toggleAllBtn.textContent = hasExpanded ? 'Collapse all' : 'Expand all';
-            }
+            document.getElementById('sheet-tabs').addEventListener('click', function (event) {
+                const tab = event.target.closest('.sheet-tab');
+                if (tab && tab.dataset.sheet !== currentSheet) switchSheet(tab.dataset.sheet);
+            });
 
             container.addEventListener('click', function (event) {
+                if (event.target.closest('#toggle-all')) {
+                    toggleAll();
+                    return;
+                }
                 const collapsible = event.target.closest('.collapsible, .sub-collapsible');
                 const statusCell = event.target.closest('.status-cell');
 
@@ -646,8 +729,8 @@
                 }
             });
 
-            if (toggleAllBtn) {
-                toggleAllBtn.addEventListener('click', function () {
+            function toggleAll() {
+                {
                     const allButtons = Array.from(container.querySelectorAll('.collapsible, .sub-collapsible'));
                     const hasExpanded = allButtons.some(b => b.classList.contains('active'));
 
@@ -673,10 +756,8 @@
                     }
 
                     updateToggleAllLabel();
-                });
+                }
             }
-
-            updateToggleAllLabel();
         }
 
         function handleError(error) {
@@ -684,7 +765,7 @@
             const container = document.getElementById('roadmap-container');
             container.innerHTML = `
                 <h1>Error</h1>
-                <p>Could not load the roadmap. Please ensure 'a2z.json' is in the same directory and correctly formatted.</p>
+                <p>Could not load the roadmap. Please ensure '${SHEETS[currentSheet].file}' is in the same directory and correctly formatted.</p>
                 <p><em>${error.message}</em></p>`;
         }
     </script>
